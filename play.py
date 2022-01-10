@@ -30,7 +30,7 @@ pushList = file_list[cursor:] + file_list[:cursor] # 整合播放列表
 startpoint = '00:00:00'
 
 i = 0
-retry = 5 # 断开重连次数
+retry = 0 # 断开重连计数器
 
 while True:
     log_file = open('./data/live.log', 'a')
@@ -47,21 +47,23 @@ while True:
     e_end = time.time()
     playtime = int(startpoint[3:5]) * 60 + int(startpoint[6:8]) + (e_end - e_start) # 计算单集视频的播放时长
 
-    if retry == 0: # 超过重连次数，关闭直播间
+    if retry == 5: # 超过重连次数，关闭直播间
         bili.stop_live()
         break
 
     if playtime < 2100: # 如果单集播放时长不足 35 分钟 2100 s = 35 min，则认为直播被断开，开始重启直播间
-        bili.stop_live()
-        time.sleep(2)
-        bili.start_live()
-        retry = retry - 1
+        bili.get_user_info()
+        if not bili.info["live_status"]:
+            bili.stop_live()
+            time.sleep(300 * retry) # 每次断开，重连时间为 5 min 的倍数
+            bili.start_live()
+        retry = retry + 1
         startpoint = time.strftime('%H:%M:%S', time.gmtime(playtime)) # 计算上次播放位置
         continue
 
     i += 1
     startpoint = '00:00:00'
-    retry = 5
+    retry = 0
     live_list['cursor'] = (cursor + i) % len(pushList)
     with open('./data/videos.json', 'w') as w_f:
         json.dump(live_list, w_f)

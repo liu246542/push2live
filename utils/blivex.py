@@ -52,7 +52,8 @@ class Bilibili:
             self._session.cookies.set(k, tempCookie[k], domain=".bilibili.com")
         if self.get_user_info():
             self._log("登录成功")
-        return True
+            return True
+        return False
     
     # 获取用户信息
     def get_user_info(self):
