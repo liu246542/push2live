@@ -7,6 +7,10 @@ from utils.blivex import Bilibili
 bili = Bilibili()
 bili.login_with_cookie('./data/cookie.json')
 
+# video_file = './data/videos.json'
+video_file = './data/videos_comedy.json'
+cursor_file = './data/cursor.json'
+
 while not bili.info["live_status"]:
     bili.start_live()
     time.sleep(5)
@@ -14,11 +18,14 @@ while not bili.info["live_status"]:
 
 rtmp_addr = bili.get_rtmp()
 
-with open('./data/videos.json') as v_f:
+with open(video_file) as v_f:
     live_list = json.load(v_f)
 
 file_list = []
-cursor = int(live_list['cursor'])
+with open(cursor_file) as v_f:
+    cursor_list = json.load(v_f)
+    cursor = int(cursor_list['cursor'])
+# cursor = int(live_list['cursor'])
 
 for p in live_list['path']:
     f_li = [x for x in os.listdir(p) if (os.path.splitext(x)[1] == '.mp4')]
@@ -41,7 +48,8 @@ while True:
     log_file.write(log_content + "\n")
     log_file.close()
 
-    p = subprocess.Popen('ffmpeg -re -ss ' + startpoint + ' -i ' + pushList[i] + ' -c copy -shortest -stimeout 120000 -f flv \"' + rtmp_addr + '\" ', shell=True)
+    #p = subprocess.Popen('ffmpeg -re -ss ' + startpoint + ' -i ' + pushList[i] + ' -c copy -shortest -stimeout 120000 -f flv \"' + rtmp_addr + '\" ', shell=True)
+    p = subprocess.Popen('ffmpeg -re -ss ' + startpoint + ' -i ' + pushList[i] + ' -c copy -shortest -f flv \"' + rtmp_addr + '\" ', shell=True)
     p.wait()
 
     e_end = time.time()
@@ -64,8 +72,8 @@ while True:
     i += 1
     startpoint = '00:00:00'
     retry = 0
-    live_list['cursor'] = (cursor + i) % len(pushList)
-    with open('./data/videos.json', 'w') as w_f:
-        json.dump(live_list, w_f)
+    cursor_list['cursor'] = (cursor + i) % len(pushList)
+    with open(cursor_file, 'w') as w_f:
+        json.dump(cursor_list, w_f)
     if i == len(pushList):
         i = 0
