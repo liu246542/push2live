@@ -7,9 +7,7 @@ from utils.blivex import Bilibili
 bili = Bilibili()
 bili.login_with_cookie('./data/cookie.json')
 
-# video_file = './data/videos.json'
-video_file = './data/videos_comedy.json'
-cursor_file = './data/cursor.json'
+video_file = './data/videos.json'
 
 while not bili.info["live_status"]:
     bili.start_live()
@@ -18,14 +16,11 @@ while not bili.info["live_status"]:
 
 rtmp_addr = bili.get_rtmp()
 
-with open(video_file) as v_f:
+with open(video_file, 'r') as v_f:
     live_list = json.load(v_f)
 
 file_list = []
-with open(cursor_file) as v_f:
-    cursor_list = json.load(v_f)
-    cursor = int(cursor_list['cursor'])
-# cursor = int(live_list['cursor'])
+cursor = int(live_list['cursor'])
 
 for p in live_list['path']:
     f_li = [x for x in os.listdir(p) if (os.path.splitext(x)[1] == '.mp4')]
@@ -34,22 +29,19 @@ for p in live_list['path']:
 
 pushList = file_list[cursor:] + file_list[:cursor] # 整合播放列表
 
-startpoint = '00:00:00'
+startpoint = live_list['ss_time']
 
 i = 0
 retry = 0 # 断开重连计数器
 
 while True:
     log_file = open('./data/live.log', 'a')
-    print("*"*5 + "-"*5 + "*"*5)
     e_start = time.time()
-    print("正在播放" + pushList[i])
     log_content = (f"[{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}]  {pushList[i]}")
     log_file.write(log_content + "\n")
     log_file.close()
 
-    #p = subprocess.Popen('ffmpeg -re -ss ' + startpoint + ' -i ' + pushList[i] + ' -c copy -shortest -stimeout 120000 -f flv \"' + rtmp_addr + '\" ', shell=True)
-    p = subprocess.Popen('ffmpeg -re -ss ' + startpoint + ' -i ' + pushList[i] + ' -c copy -shortest -f flv \"' + rtmp_addr + '\" ', shell=True)
+    p = subprocess.Popen(f'ffmpeg -hide_banner -re -ss {startpoint} -fflags +genpts -fflags nobuffer -fflags flush_packets -i {pushList[i]} -c copy -shortest -probesize 32 -max_interleave_delta 0 -flvflags no_duration_filesize -f flv \"{rtmp_addr}\"', shell=True)
     p.wait()
 
     e_end = time.time()
@@ -57,6 +49,9 @@ while True:
 
     if retry == 5: # 超过重连次数，关闭直播间
         bili.stop_live()
+        live_list['ss_time'] = startpoint
+        with open(video_file, 'w') as w_f:
+            json.dump(live_list, w_f)
         break
 
     if playtime < 2100: # 如果单集播放时长不足 35 分钟 2100 s = 35 min，则认为直播被断开，开始重启直播间
@@ -72,8 +67,9 @@ while True:
     i += 1
     startpoint = '00:00:00'
     retry = 0
-    cursor_list['cursor'] = (cursor + i) % len(pushList)
-    with open(cursor_file, 'w') as w_f:
-        json.dump(cursor_list, w_f)
+    live_list['cursor'] = (cursor + i) % len(pushList)
+    live_list['ss_time'] = startpoint
+    with open(video_file, 'w') as w_f:
+        json.dump(live_list, w_f)
     if i == len(pushList):
         i = 0

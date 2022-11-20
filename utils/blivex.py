@@ -33,7 +33,7 @@ class Bilibili:
     def _log(message):
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}] {message}")
 
-    def _requests(self, method, url, decode_level=2, retry=0, timeout=10, **kwargs):
+    def _requests(self, method, url, decode_level=2, retry=5, timeout=10, **kwargs):
         if method in ["get", "post"]:
             for _ in range(retry + 1):
                 try:
@@ -49,7 +49,7 @@ class Bilibili:
         with open(fcookie) as f:
             tempCookie = json.load(f)
         for k in tempCookie.keys():
-            self._session.cookies.set(k, tempCookie[k], domain=".bilibili.com")
+            self._session.cookies.set(k, tempCookie[k], domain=".bilibili.com")            
         if self.get_user_info():
             self._log("登录成功")
             return True
@@ -59,6 +59,9 @@ class Bilibili:
     def get_user_info(self):
         url = f"https://api.bilibili.com/x/space/acc/info?mid={self.get_uid()}&jsonp=jsonp"
         headers = {
+            'authority': "api.bilibili.com",
+            'accept': "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+            'user-agent': "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36",
             'Host': "api.bilibili.com",
             'Referer': f"https://space.bilibili.com/{self.get_uid()}/",
         }
@@ -87,6 +90,11 @@ class Bilibili:
             'csrf_token': self._session.cookies['bili_jct'],
             'csrf': self._session.cookies['bili_jct'],
         }
+        headers = {
+            'authority': "api.live.bilibili.com",
+            'accept': "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+            'user-agent': "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36"
+        }
         response = self._requests("post", url, data=payload, headers=self.headers).get("data")
         self.rtmp_addr = response.get("rtmp").get("addr") + response.get("rtmp").get("code")
         if not self.rtmp_addr:
@@ -95,9 +103,19 @@ class Bilibili:
         self._log("开启直播间成功，串流地址为：" + self.rtmp_addr)
         return True
 
+    def switch_room(self, roomid):
+        url = "https://api.live.bilibili.com/room/v1/Room/update"
+        payload = {
+            'room_id': self.info['room_id'],
+            'area_id': roomid, # 此处可以手动设置，如，33: 影音馆，376: 学习-人文社科
+            'csrf_token': self._session.cookies['bili_jct'],
+            'csrf': self._session.cookies['bili_jct'],
+        }
+        response = self._requests("post", url, data=payload, headers=self.headers)
+
     def get_rtmp(self):
         url = "https://api.live.bilibili.com/xlive/app-blink/v1/live/getWebUpStreamAddr?platform=pc"
-        response = self._requests("get", url).get("data").get("addr")
+        response = self._requests("get", url, headers=self.headers).get("data").get("addr")
         self.rtmp_addr = response.get("addr") + response.get("code")
         return self.rtmp_addr
 
