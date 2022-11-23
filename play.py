@@ -51,7 +51,7 @@ while True:
         bili.stop_live()
         live_list['ss_time'] = startpoint
         with open(video_file, 'w') as w_f:
-            json.dump(live_list, w_f)
+            json.dump(live_list, w_f, ensure_ascii=False)
         break
 
     if playtime < 2100: # 如果单集播放时长不足 35 分钟 2100 s = 35 min，则认为直播被断开，开始重启直播间
@@ -70,6 +70,6 @@ while True:
     live_list['cursor'] = (cursor + i) % len(pushList)
     live_list['ss_time'] = startpoint
     with open(video_file, 'w') as w_f:
-        json.dump(live_list, w_f)
+        json.dump(live_list, w_f, ensure_ascii=False)
     if i == len(pushList):
         i = 0
