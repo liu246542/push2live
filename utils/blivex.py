@@ -130,3 +130,18 @@ class Bilibili:
         response = self._requests("post", url, data=payload, headers=self.headers)
         self._log("正在关闭直播间")
         return True
+
+    def send_dm(self, message):
+        url = "https://api.live.bilibili.com/msg/send"
+        payload = {
+            'color': '16777215',
+            'fontsize': '25',
+            'mode': '1',
+            'msg': message,
+            'rnd': str(int(time.time())),
+            'roomid': self.info['room_id'],
+            'bubble': '0',
+            'csrf_token': self._session.cookies['bili_jct'],
+            'csrf': self._session.cookies['bili_jct']
+        }
+        response = self._requests("post", url, data=payload, headers=self.headers)
