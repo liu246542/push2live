@@ -41,7 +41,7 @@ while True:
     log_file.write(log_content + "\n")
     log_file.close()
 
-    p = subprocess.Popen(f'ffmpeg -hide_banner -re -ss {startpoint} -fflags +genpts -fflags nobuffer -fflags flush_packets -i {pushList[i]} -c copy -shortest -probesize 32 -max_interleave_delta 0 -flvflags no_duration_filesize -f flv \"{rtmp_addr}\"', shell=True)
+    p = subprocess.Popen(f'ffmpeg -hide_banner -re -ss {startpoint} -fflags +genpts+igndts+ignidx+nobuffer+flush_packets -i {pushList[i]} -c copy -shortest -probesize 32 -max_interleave_delta 0 -use_wallclock_as_timestamps 1 -flush_packets 1 -flvflags +no_sequence_end+no_metadata+no_duration_filesize -f flv \"{rtmp_addr}\"', shell=True)
     p.wait()
 
     e_end = time.time()

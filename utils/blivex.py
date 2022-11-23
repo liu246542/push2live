@@ -145,3 +145,4 @@ class Bilibili:
             'csrf': self._session.cookies['bili_jct']
         }
         response = self._requests("post", url, data=payload, headers=self.headers)
+        return response
