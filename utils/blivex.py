@@ -114,8 +114,14 @@ class Bilibili:
         response = self._requests("post", url, data=payload, headers=self.headers)
 
     def get_rtmp(self):
-        url = "https://api.live.bilibili.com/xlive/app-blink/v1/live/getWebUpStreamAddr?platform=pc"
-        response = self._requests("get", url, headers=self.headers).get("data").get("addr")
+        url = "https://api.live.bilibili.com/xlive/app-blink/v1/live/FetchWebUpStreamAddr"
+        payload = {
+            'platform': 'pc',
+            'csrf_token': self._session.cookies['bili_jct'],
+            'csrf': self._session.cookies['bili_jct'],
+        }
+
+        response = self._requests("post", url, data=payload, headers=self.headers).get("data").get("addr")
         self.rtmp_addr = response.get("addr") + response.get("code")
         return self.rtmp_addr
 
