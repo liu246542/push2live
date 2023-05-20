@@ -57,7 +57,7 @@ class Bilibili:
     
     # 获取用户信息
     def get_user_info(self):
-        url = f"https://api.bilibili.com/x/space/acc/info?mid={self.get_uid()}&jsonp=jsonp"
+        url = f"https://api.bilibili.com/x/space/wbi/acc/info?mid={self.get_uid()}&jsonp=jsonp"
         headers = {
             'authority': "api.bilibili.com",
             'accept': "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
