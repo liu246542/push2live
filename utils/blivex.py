@@ -3,6 +3,18 @@
 
 import requests
 import time
+import qrcode
+import json
+from hashlib import md5
+from urllib.parse import urlencode
+from functools import reduce
+
+APPKEY = "4409e2ce8ffd12b8"
+APPSEC = "59b43e04ad6965f34319062b478f83dd"
+
+def get_sign(params):
+    items = sorted(params.items())
+    return md5(f"{urlencode(items)}{APPSEC}".encode('utf-8')).hexdigest()
 
 class Bilibili:
     def __init__(self):
@@ -43,21 +55,86 @@ class Bilibili:
                     pass
         return None
 
+    def getMixinKey(self):
+        url = f"https://api.bilibili.com/x/web-interface/nav"
+        response = self._requests("get", url)
+        wbi_img = response["data"]["wbi_img"]
+        img_url = wbi_img.get("img_url")
+        sub_url = wbi_img.get("sub_url")
+        img_value = img_url.split("/")[-1].split(".")[0]
+        sub_value = sub_url.split("/")[-1].split(".")[0]
+        ae = img_value + sub_value
+        oe = [46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41,13, 37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52]
+        le = reduce(lambda s, i: s + ae[i], oe, "")
+        return le[:32]
+
     # 使用 cookie 登陆
     def login_with_cookie(self, fcookie):
         import json
         with open(fcookie) as f:
             tempCookie = json.load(f)
         for k in tempCookie.keys():
+            self._session.cookies.set(k, tempCookie[k], domain=".bilibili.com")
+
+        if self.get_user_info():
+            self._log("登录成功")
+            return True
+        return False
+
+    def login_with_qrcode(self, cookie_file = "./data/cookie.json"):
+        params = {
+            "appkey": APPKEY,
+            "local_id": 0,
+            "ts": int(time.time())
+        }
+        params["sign"] = get_sign(params)
+        url = f"http://passport.bilibili.com/x/passport-tv-login/qrcode/auth_code"
+        response = self._requests("post", url, data=params)
+        print(response)
+        qr = qrcode.QRCode()
+        qr.add_data(response["data"]["url"])
+        img = qr.make_image()
+        img.show()
+
+        params = {
+            "appkey": APPKEY,
+            "local_id": 0,
+            "ts": int(time.time())
+        }
+        params["auth_code"] = response["data"]["auth_code"]
+        params["sign"] = get_sign(params)
+        url = f"http://passport.bilibili.com/x/passport-tv-login/qrcode/poll"
+        while True:
+            response = self._requests("post", url, data=params)
+            print(response)
+            if response["code"] == 0:
+                break
+            time.sleep(10)
+        tempCookie = {}
+        for item in response["data"]["cookie_info"]["cookies"]:
+            tempCookie.setdefault(item["name"], item["value"])
+        with open(cookie_file, "w") as w_f:
+            json.dump(tempCookie, w_f)
+        for k in tempCookie.keys():
             self._session.cookies.set(k, tempCookie[k], domain=".bilibili.com")            
         if self.get_user_info():
             self._log("登录成功")
             return True
         return False
-    
+  
     # 获取用户信息
     def get_user_info(self):
-        url = f"https://api.bilibili.com/x/space/wbi/acc/info?mid={self.get_uid()}&jsonp=jsonp"
+        mixin_key = self.getMixinKey()
+        wts = int(time.time())
+        params = {
+            "mid": self.get_uid()
+        }
+        params["wts"] = wts
+        # print(params)
+        Ae = "&".join([f'{key}={value}' for key, value in params.items()])
+        w_rid = md5((Ae + mixin_key).encode(encoding='utf-8')).hexdigest()
+        url = f"https://api.bilibili.com/x/space/wbi/acc/info?mid={self.get_uid()}&w_rid={w_rid}&wts={wts}"
+        # url = f"https://api.bilibili.com/x/space/wbi/acc/info?mid={self.get_uid()}&jsonp=jsonp"
         headers = {
             'authority': "api.bilibili.com",
             'accept': "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
