@@ -3,6 +3,17 @@
 
 import requests
 import time
+import qrcode
+from hashlib import md5
+from urllib.parse import urlencode
+import json
+
+APPKEY = "4409e2ce8ffd12b8"
+APPSEC = "59b43e04ad6965f34319062b478f83dd"
+
+def get_sign(params):
+    items = sorted(params.items())
+    return md5(f"{urlencode(items)}{APPSEC}".encode('utf-8')).hexdigest()
 
 class Bilibili:
     def __init__(self):
@@ -54,7 +65,48 @@ class Bilibili:
             self._log("登录成功")
             return True
         return False
-    
+
+    def login_with_qrcode(self):
+        params = {
+            "appkey": APPKEY,
+            "local_id": 0,
+            "ts": int(time.time())
+        }
+        params["sign"] = get_sign(params)
+        url = f"http://passport.bilibili.com/x/passport-tv-login/qrcode/auth_code"
+        response = self._requests("post", url, data=params)
+        print(response)
+        qr = qrcode.QRCode()
+        qr.add_data(response["data"]["url"])
+        img = qr.make_image()
+        img.show()
+
+        params = {
+            "appkey": APPKEY,
+            "local_id": 0,
+            "ts": int(time.time())
+        }
+        params["auth_code"] = response["data"]["auth_code"]
+        params["sign"] = get_sign(params)
+        url = f"http://passport.bilibili.com/x/passport-tv-login/qrcode/poll"
+        while True:
+            response = self._requests("post", url, data=params)
+            print(response)
+            if response["code"] == 0:
+                break
+            time.sleep(5)
+        tempCookie = {}
+        for item in response["data"]["cookie_info"]["cookies"]:
+            tempCookie.setdefault(item["name"], item["value"])
+        with open("../data/cookie.json", "w") as w_f:
+            json.dump(tempCookie, w_f)
+        for k in tempCookie.keys():
+            self._session.cookies.set(k, tempCookie[k], domain=".bilibili.com")            
+        if self.get_user_info():
+            self._log("登录成功")
+            return True
+        return False
+  
     # 获取用户信息
     def get_user_info(self):
         url = f"https://api.bilibili.com/x/space/wbi/acc/info?mid={self.get_uid()}&jsonp=jsonp"
