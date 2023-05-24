@@ -27,7 +27,7 @@ bili.login_with_cookie("./data/cookie.json")
 ```
 bili.start_live() # 开启直播间
 rtmp_addr = bili.get_rtmp() # 获取直播 rtmp 地址
-ffmpeg -i "./本地视频.mp4" -c copy rtmp_addr # 使用 ffmpeg 推流
+ffmpeg -re -i "./本地视频.mp4" -c copy rtmp_addr # 使用 ffmpeg 推流
 bili.send_dm("弹幕") # 发送弹幕
 bili.stop_live() # 关闭直播间
 ```
