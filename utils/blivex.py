@@ -1,20 +1,23 @@
 #!/usr/bin/env python3.7
 # -*- coding: utf-8 -*-
 
-import requests
 import time
-import qrcode
 import json
+import qrcode
+import requests
+import webbrowser
 from hashlib import md5
-from urllib.parse import urlencode
 from functools import reduce
+from urllib.parse import urlencode
 
 APPKEY = "4409e2ce8ffd12b8"
 APPSEC = "59b43e04ad6965f34319062b478f83dd"
 
+
 def get_sign(params):
     items = sorted(params.items())
     return md5(f"{urlencode(items)}{APPSEC}".encode('utf-8')).hexdigest()
+
 
 class Bilibili:
     def __init__(self):
@@ -39,6 +42,11 @@ class Bilibili:
             "sec-fetch-site": "same-site",
             "referrer": "https://link.bilibili.com/p/center/index",
             "referrerPolicy": "no-referrer-when-downgrade"
+        }
+        self.api_headers = {
+            'authority': "api.live.bilibili.com",
+            'accept': "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+            'user-agent': "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36"
         }
 
     @staticmethod
@@ -75,13 +83,12 @@ class Bilibili:
             tempCookie = json.load(f)
         for k in tempCookie.keys():
             self._session.cookies.set(k, tempCookie[k], domain=".bilibili.com")
-
         if self.get_user_info():
             self._log("登录成功")
             return True
         return False
 
-    def login_with_qrcode(self, cookie_file = "./data/cookie.json"):
+    def login_with_qrcode(self, cookie_file="./data/cookie.json"):
         params = {
             "appkey": APPKEY,
             "local_id": 0,
@@ -94,7 +101,9 @@ class Bilibili:
         qr = qrcode.QRCode()
         qr.add_data(response["data"]["url"])
         img = qr.make_image()
-        img.show()
+        # img.show()
+        img.save("./login_qr.png")
+        webbrowser.open("./login_qr.png")
 
         params = {
             "appkey": APPKEY,
@@ -121,7 +130,7 @@ class Bilibili:
             self._log("登录成功")
             return True
         return False
-  
+
     # 获取用户信息
     def get_user_info(self):
         mixin_key = self.getMixinKey()
@@ -135,14 +144,7 @@ class Bilibili:
         w_rid = md5((Ae + mixin_key).encode(encoding='utf-8')).hexdigest()
         url = f"https://api.bilibili.com/x/space/wbi/acc/info?mid={self.get_uid()}&w_rid={w_rid}&wts={wts}"
         # url = f"https://api.bilibili.com/x/space/wbi/acc/info?mid={self.get_uid()}&jsonp=jsonp"
-        headers = {
-            'authority': "api.bilibili.com",
-            'accept': "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-            'user-agent': "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36",
-            'Host': "api.bilibili.com",
-            'Referer': f"https://space.bilibili.com/{self.get_uid()}/",
-        }
-        response = self._requests("get", url, headers=headers)
+        response = self._requests("get", url, headers=self.api_headers)
         if response and response.get("code") == 0:
             self.info['ban'] = bool(response['data']['silence'])
             self.info['coins'] = response['data']['coins']
@@ -158,21 +160,16 @@ class Bilibili:
             self._log("用户信息获取失败")
             return False
 
-    def start_live(self):                
+    def start_live(self):
         url = "https://api.live.bilibili.com/room/v1/Room/startLive"
         payload = {
             'room_id': self.info['room_id'],
             'platform': 'pc',
-            'area_v2': 33, # 此处可以手动设置，如，33: 影音馆，376: 学习-人文社科
+            'area_v2': 840,  # 此处可以手动设置，如，33: 影音馆，376: 学习-人文社科
             'csrf_token': self._session.cookies['bili_jct'],
             'csrf': self._session.cookies['bili_jct'],
         }
-        headers = {
-            'authority': "api.live.bilibili.com",
-            'accept': "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-            'user-agent': "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36"
-        }
-        response = self._requests("post", url, data=payload, headers=self.headers).get("data")
+        response = self._requests("post", url, data=payload, headers=self.api_headers).get("data")
         self.rtmp_addr = response.get("rtmp").get("addr") + response.get("rtmp").get("code")
         if not self.rtmp_addr:
             self._log("开启直播间失败")
@@ -188,7 +185,7 @@ class Bilibili:
             'csrf_token': self._session.cookies['bili_jct'],
             'csrf': self._session.cookies['bili_jct'],
         }
-        response = self._requests("post", url, data=payload, headers=self.headers)
+        response = self._requests("post", url, data=payload, headers=self.api_headers)
 
     def get_rtmp(self):
         url = "https://api.live.bilibili.com/xlive/app-blink/v1/live/FetchWebUpStreamAddr"
@@ -198,7 +195,7 @@ class Bilibili:
             'csrf': self._session.cookies['bili_jct'],
         }
 
-        response = self._requests("post", url, data=payload, headers=self.headers).get("data").get("addr")
+        response = self._requests("post", url, data=payload, headers=self.api_headers).get("data").get("addr")
         self.rtmp_addr = response.get("addr") + response.get("code")
         return self.rtmp_addr
 
@@ -210,7 +207,8 @@ class Bilibili:
             'csrf_token': self._session.cookies['bili_jct'],
             'csrf': self._session.cookies['bili_jct'],
         }
-        response = self._requests("post", url, data=payload, headers=self.headers)
+        response = self._requests("post", url, data=payload, headers=self.api_headers)
+        print(response)
         self._log("正在关闭直播间")
         return True
 
@@ -227,5 +225,5 @@ class Bilibili:
             'csrf_token': self._session.cookies['bili_jct'],
             'csrf': self._session.cookies['bili_jct']
         }
-        response = self._requests("post", url, data=payload, headers=self.headers)
+        response = self._requests("post", url, data=payload, headers=self.api_headers)
         return response
