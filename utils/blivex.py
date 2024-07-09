@@ -5,7 +5,6 @@ import time
 import json
 import qrcode
 import requests
-import webbrowser
 from hashlib import md5
 from functools import reduce
 from urllib.parse import urlencode
@@ -22,7 +21,8 @@ def get_sign(params):
 class Bilibili:
     def __init__(self):
         self._session = requests.Session()
-        self.get_cookies = lambda: self._session.cookies.get_dict(domain=".bilibili.com")
+        self.get_cookies = lambda: self._session.cookies.get_dict(
+            domain=".bilibili.com")
         self.get_uid = lambda: self.get_cookies().get("DedeUserID", "")
         self.info = {
             'ban': False,
@@ -65,7 +65,7 @@ class Bilibili:
 
     def getMixinKey(self):
         url = f"https://api.bilibili.com/x/web-interface/nav"
-        response = self._requests("get", url)
+        response = self._requests("get", url, headers=self.api_headers)
         wbi_img = response["data"]["wbi_img"]
         img_url = wbi_img.get("img_url")
         sub_url = wbi_img.get("sub_url")
@@ -96,14 +96,12 @@ class Bilibili:
         }
         params["sign"] = get_sign(params)
         url = f"http://passport.bilibili.com/x/passport-tv-login/qrcode/auth_code"
-        response = self._requests("post", url, data=params)
+        response = self._requests("post", url, data=params,
+                                  headers=self.api_headers)
         print(response)
         qr = qrcode.QRCode()
         qr.add_data(response["data"]["url"])
-        img = qr.make_image()
-        # img.show()
-        img.save("./login_qr.png")
-        webbrowser.open("./login_qr.png")
+        qr.print_tty()
 
         params = {
             "appkey": APPKEY,
@@ -114,8 +112,8 @@ class Bilibili:
         params["sign"] = get_sign(params)
         url = f"http://passport.bilibili.com/x/passport-tv-login/qrcode/poll"
         while True:
-            response = self._requests("post", url, data=params)
-            print(response)
+            response = self._requests("post", url, data=params,
+                                      headers=self.api_headers)
             if response["code"] == 0:
                 break
             time.sleep(10)
@@ -166,10 +164,12 @@ class Bilibili:
             'room_id': self.info['room_id'],
             'platform': 'pc',
             'area_v2': 840,  # 此处可以手动设置，如，33: 影音馆，376: 学习-人文社科
+            'backup_stream': "0",
             'csrf_token': self._session.cookies['bili_jct'],
             'csrf': self._session.cookies['bili_jct'],
         }
-        response = self._requests("post", url, data=payload, headers=self.api_headers).get("data")
+        response = self._requests("post", url, data=payload,
+                                  headers=self.api_headers).get("data")
         self.rtmp_addr = response.get("rtmp").get("addr") + response.get("rtmp").get("code")
         if not self.rtmp_addr:
             self._log("开启直播间失败")
@@ -181,21 +181,25 @@ class Bilibili:
         url = "https://api.live.bilibili.com/room/v1/Room/update"
         payload = {
             'room_id': self.info['room_id'],
-            'area_id': roomid, # 此处可以手动设置，如，33: 影音馆，376: 学习-人文社科
+            'area_id': roomid,  # 此处可以手动设置，如，33: 影音馆，376: 学习-人文社科
             'csrf_token': self._session.cookies['bili_jct'],
             'csrf': self._session.cookies['bili_jct'],
         }
-        response = self._requests("post", url, data=payload, headers=self.api_headers)
+        response = self._requests("post", url, data=payload,
+                                  headers=self.api_headers)
+        return response
 
     def get_rtmp(self):
-        url = "https://api.live.bilibili.com/xlive/app-blink/v1/live/FetchWebUpStreamAddr"
+        url = "https://api.live.bilibili.com/\
+               xlive/app-blink/v1/live/FetchWebUpStreamAddr"
         payload = {
             'platform': 'pc',
             'csrf_token': self._session.cookies['bili_jct'],
             'csrf': self._session.cookies['bili_jct'],
         }
-
-        response = self._requests("post", url, data=payload, headers=self.api_headers).get("data").get("addr")
+        response = self._requests("post", url, data=payload,
+                                  headers=self.api_headers
+                                  ).get("data").get("addr")
         self.rtmp_addr = response.get("addr") + response.get("code")
         return self.rtmp_addr
 
@@ -207,8 +211,7 @@ class Bilibili:
             'csrf_token': self._session.cookies['bili_jct'],
             'csrf': self._session.cookies['bili_jct'],
         }
-        response = self._requests("post", url, data=payload, headers=self.api_headers)
-        print(response)
+        self._requests("post", url, data=payload, headers=self.api_headers)
         self._log("正在关闭直播间")
         return True
 
@@ -225,5 +228,6 @@ class Bilibili:
             'csrf_token': self._session.cookies['bili_jct'],
             'csrf': self._session.cookies['bili_jct']
         }
-        response = self._requests("post", url, data=payload, headers=self.api_headers)
+        response = self._requests("post", url, data=payload,
+                                  headers=self.api_headers)
         return response
