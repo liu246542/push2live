@@ -123,7 +123,7 @@ class Bilibili:
         with open(cookie_file, "w") as w_f:
             json.dump(tempCookie, w_f)
         for k in tempCookie.keys():
-            self._session.cookies.set(k, tempCookie[k], domain=".bilibili.com")            
+            self._session.cookies.set(k, tempCookie[k], domain=".bilibili.com")
         if self.get_user_info():
             self._log("登录成功")
             return True
@@ -163,7 +163,7 @@ class Bilibili:
         payload = {
             'room_id': self.info['room_id'],
             'platform': 'pc',
-            'area_v2': 840,  # 此处可以手动设置，如，33: 影音馆，376: 学习-人文社科
+            'area_v2': 624,  # 此处可以手动设置，如，33: 影音馆，376: 学习-人文社科
             'backup_stream': "0",
             'csrf_token': self._session.cookies['bili_jct'],
             'csrf': self._session.cookies['bili_jct'],
@@ -190,8 +190,7 @@ class Bilibili:
         return response
 
     def get_rtmp(self):
-        url = "https://api.live.bilibili.com/\
-               xlive/app-blink/v1/live/FetchWebUpStreamAddr"
+        url = "https://api.live.bilibili.com/xlive/app-blink/v1/live/FetchWebUpStreamAddr"
         payload = {
             'platform': 'pc',
             'csrf_token': self._session.cookies['bili_jct'],
