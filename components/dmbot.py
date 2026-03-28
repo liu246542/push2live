@@ -74,6 +74,16 @@ class MyHandler(blivedm.BaseHandler):
             f.write('1')
         _bili.stop_live()
 
+    async def _on_anchor_ecology(self, client: blivedm.BLiveClient, message: blivedm.AnchorEcologyLivingDialog):
+        global _bili
+        temp_message = f"[{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}] [违规]{message.summary}"
+        with open(self.dm_log, 'a') as f:
+            f.write(temp_message + "\n")
+        with open(self.qz_flag, 'w') as f:
+            f.write('1')
+        _bili.stop_live()
+        _bili.send_dm("[Bot]直播违规警告")
+
     async def _on_gift(self, client: blivedm.BLiveClient, message: blivedm.GiftMessage):
         temp_message = f"[{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}] #{message.uname} 赠送{message.gift_name}x{message.num} （{message.coin_type}瓜子x{message.total_coin}）"
         with open(self.dm_log, 'a') as f:

@@ -1,4 +1,5 @@
 import os
+import signal
 import subprocess
 import time
 import sys
@@ -11,6 +12,30 @@ from utils.bilibili_api import BilibiliAPI
 from utils.config import load_config
 
 
+def _check_qz_flag(path):
+    """读取 qz_flag，返回是否需要停止"""
+    try:
+        with open(path, "r") as f:
+            return f.read().strip() == "1"
+    except FileNotFoundError:
+        return False
+
+
+def _wait_or_kill(proc, qz_flag_path, poll_interval=2):
+    """轮询等待子进程结束，期间检查 qz_flag，发现切断时杀掉进程"""
+    while proc.poll() is None:
+        if _check_qz_flag(qz_flag_path):
+            # 先发 SIGTERM 让 ffmpeg 优雅退出
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            except (ProcessLookupError, OSError):
+                proc.terminate()
+            proc.wait(timeout=5)
+            return True  # 被切断
+        time.sleep(poll_interval)
+    return False  # 正常结束
+
+
 def run(config=None):
     if config is None:
         config = load_config()
@@ -19,12 +44,7 @@ def run(config=None):
     pipe_path = os.path.join(ROOT_DIR, config["paths"]["pipe"])
     ff = config["ffmpeg"]
 
-    with open(qz_flag_path, 'r') as f:
-        qz_flag = f.read()
-
-    print(qz_flag)
-
-    if qz_flag == "1":
+    if _check_qz_flag(qz_flag_path):
         os._exit(0)
 
     bili = BilibiliAPI(config)
@@ -38,10 +58,7 @@ def run(config=None):
     rtmp_addr = bili.get_rtmp()
 
     while True:
-        with open(qz_flag_path, "r") as f:
-            qz_flag = f.read()
-
-        if qz_flag == "1":
+        if _check_qz_flag(qz_flag_path):
             break
 
         try:
@@ -67,8 +84,11 @@ def run(config=None):
             f' -rtmp_buffer {ff["rtmp_buffer"]} -rtsp_transport tcp'
             f' "{rtmp_addr}"'
         )
-        p = subprocess.Popen(cmd, shell=True)
-        p.wait()
+        p = subprocess.Popen(cmd, shell=True, preexec_fn=os.setsid)
+        cut = _wait_or_kill(p, qz_flag_path)
+        if cut:
+            print("[play_server] 收到切断信号，已终止 ffmpeg")
+            break
         time.sleep(5)
         bili.stop_live()
 

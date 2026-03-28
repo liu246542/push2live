@@ -17,6 +17,7 @@ __all__ = (
     'CutOff',
     'WARNING',
     'WATCHED_CHANGE',
+    'AnchorEcologyLivingDialog',
     'LIKE_INFO_V3_CLICK',
     'LIKE_INFO_V3_UPDATE'
 )
@@ -425,6 +426,31 @@ class WARNING:
         return cls(
             msg = data['msg'],
         )
+
+
+@dataclasses.dataclass
+class AnchorEcologyLivingDialog:
+    """直播违规处罚对话框"""
+    title: str = ""
+    """对话框标题，如"直播间违规" """
+    messages: list = dataclasses.field(default_factory=list)
+    """处罚详情列表，每项含 label 和 content"""
+
+    @classmethod
+    def from_command(cls, data: dict):
+        d = data['data']
+        return cls(
+            title=d.get('dialog_title', ''),
+            messages=d.get('dialog_message_list', []),
+        )
+
+    @property
+    def summary(self) -> str:
+        """返回可读的摘要，如 '直播间违规: 处罚结果=警告, 违规原因=...'"""
+        parts = [self.title]
+        for m in self.messages:
+            parts.append(f"{m.get('label', '')}={m.get('content', '')}")
+        return ': '.join(parts[:1]) + ' | ' + ', '.join(parts[1:])
 
 
 @dataclasses.dataclass

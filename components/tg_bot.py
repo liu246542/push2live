@@ -10,6 +10,7 @@ if ROOT_DIR not in sys.path:
 
 from telegram import Update, Bot
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.utils.request import Request
 from telegram.ext.dispatcher import run_async
 
 from utils.bilibili_api import BilibiliAPI
@@ -108,9 +109,12 @@ def run(config=None):
     _bili = BilibiliAPI(config)
     _bili.login_with_cookie()
 
-    _bot = Bot(token=token)
+    proxy_url = tg_config.get("proxy", "")
+    request_kwargs = {"proxy_url": proxy_url} if proxy_url else {}
 
-    updater = Updater(token=token, use_context=True)
+    _bot = Bot(token=token, request=Request(**request_kwargs) if request_kwargs else None)
+
+    updater = Updater(token=token, use_context=True, request_kwargs=request_kwargs)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(CommandHandler('start', start))
     dispatcher.add_handler(MessageHandler(Filters.text, handle_message))

@@ -108,6 +108,16 @@ def main():
             proc.join(timeout=10)
             if proc.is_alive():
                 proc.kill()
+        # 关闭远程直播间
+        if not args.local:
+            try:
+                from utils.bilibili_api import BilibiliAPI
+                bili = BilibiliAPI(config)
+                bili.login_with_cookie()
+                bili.stop_live()
+                print("[main] 已关闭远程直播间")
+            except Exception as e:
+                print(f"[main] 关闭直播间失败: {e}")
         print("[main] 所有组件已停止")
 
 

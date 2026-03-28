@@ -11,6 +11,8 @@ mode = 1
 [telegram]
 bot_token = "YOUR_BOT_TOKEN_HERE"
 chat_id = "YOUR_CHAT_ID_HERE"
+# HTTP 代理（可选，留空则不使用）
+# proxy = "http://127.0.0.1:8118"
 
 [ffmpeg]
 max_bitrate = "4500k"

@@ -1,3 +1,4 @@
+import signal
 import subprocess
 import time
 import os
@@ -9,6 +10,29 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from utils.config import load_config
+
+
+def _check_qz_flag(path):
+    """读取 qz_flag，返回是否需要停止"""
+    try:
+        with open(path, "r") as f:
+            return f.read().strip() == "1"
+    except FileNotFoundError:
+        return False
+
+
+def _wait_or_kill(proc, qz_flag_path, poll_interval=2):
+    """轮询等待子进程结束，期间检查 qz_flag，发现切断时杀掉进程"""
+    while proc.poll() is None:
+        if _check_qz_flag(qz_flag_path):
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            except (ProcessLookupError, OSError):
+                proc.terminate()
+            proc.wait(timeout=5)
+            return True
+        time.sleep(poll_interval)
+    return False
 
 
 def get_duration(file_name):
@@ -47,6 +71,7 @@ def run(config=None):
     video_file = config["paths"]["videos_db"]
     push_pipe = os.path.join(ROOT_DIR, config["paths"]["pipe"])
     live_log = config["paths"]["live_log"]
+    qz_flag_path = config["paths"]["qz_flag"]
 
     mtime = os.stat(video_file).st_mtime
     (live_list, cursor, pushList, startpoint) = reshape_list(video_file)
@@ -64,10 +89,8 @@ def run(config=None):
 
         pipe_command = config.get("ffmpeg", {}).get("pipe_command", "")
         if pipe_command:
-            # 自定义脚本：传入 startpoint, 视频文件, 管道路径 三个参数
             cmd = f'{pipe_command} {startpoint} "{pushList[i]}" {push_pipe}'
-            p = subprocess.Popen(cmd, shell=True)
-            p.wait()
+            p = subprocess.Popen(cmd, shell=True, preexec_fn=os.setsid)
         else:
             cmd = [
                 'ffmpeg', '-re', '-ss', startpoint,
@@ -75,9 +98,18 @@ def run(config=None):
                 '-c', 'copy',
                 '-f', 'mpegts', '-'
             ]
-            with open(push_pipe, 'ab') as pipe:
-                p = subprocess.Popen(cmd, stdout=pipe)
-                p.wait()
+            pipe_fd = open(push_pipe, 'ab')
+            p = subprocess.Popen(cmd, stdout=pipe_fd, preexec_fn=os.setsid)
+
+        cut = _wait_or_kill(p, qz_flag_path)
+        if not pipe_command:
+            pipe_fd.close()
+        if cut:
+            print("[play_pipe] 收到切断信号，已终止 ffmpeg")
+            # 等待 qz_flag 恢复为 0 再继续
+            while _check_qz_flag(qz_flag_path):
+                time.sleep(5)
+            continue
 
         e_end = time.time()
         playtime = (int(startpoint[0:2]) * 3600 +

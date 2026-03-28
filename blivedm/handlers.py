@@ -75,6 +75,9 @@ class BaseHandler(HandlerInterface):
     def __likeupdate_callback(self, client: client_.BLiveClient, command: dict):
         return self._on_likeupdate(client, models.LIKE_INFO_V3_UPDATE.from_command(command))
 
+    def __anchor_ecology_callback(self, client: client_.BLiveClient, command: dict):
+        return self._on_anchor_ecology(client, models.AnchorEcologyLivingDialog.from_command(command))
+
     def __heartbeat_callback(self, client: client_.BLiveClient, command: dict):
         return self._on_heartbeat(client, models.HeartbeatMessage.from_command(command['data']))
 
@@ -117,6 +120,8 @@ class BaseHandler(HandlerInterface):
         # 被版权警告
         'CUT_OFF_V2': __cutoffv2_callback,
         'WARNING': __warning_callback,
+        # 直播违规处罚对话框
+        'ANCHOR_ECOLOGY_LIVING_DIALOG': __anchor_ecology_callback,
         'WATCHED_CHANGE': __watched_callback,
         'LIKE_INFO_V3_CLICK': __likeinfo_callback,
         'LIKE_INFO_V3_UPDATE': __likeupdate_callback
@@ -170,6 +175,9 @@ class BaseHandler(HandlerInterface):
 
     async def _on_warning(self, client: client_.BLiveClient, message: models.WARNING):
         """被警告"""
+
+    async def _on_anchor_ecology(self, client: client_.BLiveClient, message: models.AnchorEcologyLivingDialog):
+        """直播违规处罚"""
 
     async def _on_watched(self, client: client_.BLiveClient, message: models.WATCHED_CHANGE):
         """观看人数"""
