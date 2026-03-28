@@ -16,6 +16,19 @@ from utils.config import load_config
 logger = logging.getLogger("tg_bot")
 
 
+# ============ 权限检查 ============
+
+def admin_only(func):
+    """装饰器：仅允许 admin_ids 中的用户执行"""
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        admin_ids = context.bot_data.get("admin_ids", [])
+        if admin_ids and update.effective_user.id not in admin_ids:
+            await update.message.reply_text("无权限")
+            return
+        return await func(update, context)
+    return wrapper
+
+
 # ============ 命令处理 ============
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -25,6 +38,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     "/send <消息> - 发送弹幕")
 
 
+@admin_only
 async def cmd_start_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
     qz_flag_path = context.bot_data["qz_flag_path"]
     with open(qz_flag_path, "w") as f:
@@ -32,6 +46,7 @@ async def cmd_start_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("已恢复推流信号（qz_flag=0），等待组件自动重启")
 
 
+@admin_only
 async def cmd_stop_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
     qz_flag_path = context.bot_data["qz_flag_path"]
     bili: BilibiliAPI = context.bot_data["bili"]
@@ -44,6 +59,7 @@ async def cmd_stop_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"停止推流失败: {e}")
 
 
+@admin_only
 async def cmd_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bili: BilibiliAPI = context.bot_data["bili"]
     text = " ".join(context.args) if context.args else ""
@@ -113,6 +129,7 @@ def run(config=None):
     app.bot_data["bili"] = bili
     app.bot_data["config"] = config
     app.bot_data["qz_flag_path"] = qz_flag_path
+    app.bot_data["admin_ids"] = tg_config.get("admin_ids", [])
 
     # 注册命令
     app.add_handler(CommandHandler("start", cmd_start))
