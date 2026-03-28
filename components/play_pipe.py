@@ -11,16 +11,18 @@ if ROOT_DIR not in sys.path:
 from utils.config import load_config
 
 
-def get_time(file_name):
+def get_duration(file_name):
+    """获取视频时长（秒）"""
     p = subprocess.Popen(
-        f'ffprobe -i {file_name} -show_entries format=duration -v quiet -of csv="p=0" -sexagesimal',
-        shell=True, stdout=subprocess.PIPE
+        ['ffprobe', '-i', file_name, '-show_entries', 'format=duration',
+         '-v', 'quiet', '-of', 'csv=p=0'],
+        stdout=subprocess.PIPE
     )
-    e_time = p.stdout.readline().decode('utf8')
-    return (
-        "0" + e_time[0:1] + "\\\\:" + e_time[2:4] + "\\\\" + e_time[4:7],
-        int(e_time[0:1]) * 3600 + int(e_time[2:4]) * 60 + int(e_time[5:7])
-    )
+    output = p.stdout.readline().decode('utf8').strip()
+    try:
+        return int(float(output))
+    except (ValueError, TypeError):
+        return 0
 
 
 def reshape_list(video_file):
@@ -29,10 +31,10 @@ def reshape_list(video_file):
     file_list = []
     cursor = int(live_list['cursor'])
     for p in live_list['path']:
-        f_li = [x for x in os.listdir(p + "videos/")
+        f_li = [x for x in os.listdir(p)
                 if os.path.splitext(x)[1] in ('.mp4', '.ts', '.mkv')]
         f_li = sorted(f_li, key=lambda a: os.path.splitext(a)[0])
-        file_list.extend(p + "videos/" + x for x in f_li)
+        file_list.extend(os.path.join(p, x) for x in f_li)
     pushList = file_list[cursor:] + file_list[:cursor]
     startpoint = live_list['ss_time']
     return (live_list, cursor, pushList, startpoint)
@@ -50,26 +52,25 @@ def run(config=None):
     (live_list, cursor, pushList, startpoint) = reshape_list(video_file)
 
     i = 0
-    cutid = 1
 
     while True:
         mtime = os.stat(video_file).st_mtime
-        log_file = open(live_log, 'a')
-        log_content = f"[{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}]  {pushList[i]}"
-        log_file.write(log_content + "\n")
-        log_file.close()
-        (videotime_s, videotime) = get_time(pushList[i])
+        with open(live_log, 'a') as log_file:
+            log_content = f"[{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}]  {pushList[i]}"
+            log_file.write(log_content + "\n")
 
+        videotime = get_duration(pushList[i])
         e_start = time.time()
 
-        (pname, fname) = os.path.split(pushList[i])
-        fname = os.path.splitext(fname)[0]
-
-        p = subprocess.Popen(
-            f'cd {pname}/.. && bash play2.sh {startpoint} {fname} {push_pipe} {videotime_s}',
-            shell=True
-        )
-        p.wait()
+        cmd = [
+            'ffmpeg', '-re', '-ss', startpoint,
+            '-i', pushList[i],
+            '-c', 'copy',
+            '-f', 'mpegts', '-'
+        ]
+        with open(push_pipe, 'ab') as pipe:
+            p = subprocess.Popen(cmd, stdout=pipe)
+            p.wait()
 
         e_end = time.time()
         playtime = (int(startpoint[0:2]) * 3600 +
@@ -78,12 +79,10 @@ def run(config=None):
 
         if mtime != os.stat(video_file).st_mtime:
             i = 0
-            cutid = 1
             (live_list, cursor, pushList, startpoint) = reshape_list(video_file)
             continue
 
         if videotime - playtime > 180:
-            cutid += 1
             startpoint = time.strftime('%H:%M:%S', time.gmtime(playtime))
             live_list['ss_time'] = startpoint
             with open(video_file, 'w') as w_f:
@@ -91,7 +90,6 @@ def run(config=None):
             continue
 
         i += 1
-        cutid = 1
         startpoint = '00:00:00'
         live_list['cursor'] = (cursor + i) % len(pushList)
         live_list['ss_time'] = startpoint
