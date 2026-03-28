@@ -31,8 +31,11 @@ async def load_custom_session(cookie_file):
 async def run_client(config):
     room_id = str(config["bilibili"]["room_id"])
     cookie_file = config["bilibili"]["cookie_file"]
+    with open(cookie_file, "r") as f:
+        cookie_data = json.load(f)
+    uid = int(cookie_data.get("DedeUserID", 0))
     custom_session = await load_custom_session(cookie_file)
-    client = blivedm.BLiveClient(room_id, session=custom_session, ssl=True)
+    client = blivedm.BLiveClient(room_id, uid=uid, session=custom_session, ssl=True)
     handler = MyHandler(config)
     client.add_handler(handler)
 
