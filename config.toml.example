@@ -27,12 +27,12 @@ rtmp_addr = "rtmp://YOUR_LOCAL_IP:1936/live"
 [paths]
 videos_db = "data/videos.json"
 pipe = "pipe/pushlive"
-dm_log = "dm.log"
+dm_log = "data/dm.log"
 live_log = "data/live.log"
 login_log = "data/login.log"
-qz_flag = "qz.log"
+qz_flag = "data/qz.log"
 
 [switcher]
 area_ids = [646, 624, 236, 840]
-area_names = ["UP主日常", "电子榨菜", "主机游戏", "养成玩法"]
+area_names = ["生活杂谈", "电子榨菜", "主机游戏", "养成玩法"]
 interval = 60
