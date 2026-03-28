@@ -62,15 +62,22 @@ def run(config=None):
         videotime = get_duration(pushList[i])
         e_start = time.time()
 
-        cmd = [
-            'ffmpeg', '-re', '-ss', startpoint,
-            '-i', pushList[i],
-            '-c', 'copy',
-            '-f', 'mpegts', '-'
-        ]
-        with open(push_pipe, 'ab') as pipe:
-            p = subprocess.Popen(cmd, stdout=pipe)
+        pipe_command = config.get("ffmpeg", {}).get("pipe_command", "")
+        if pipe_command:
+            # 自定义脚本：传入 startpoint, 视频文件, 管道路径 三个参数
+            cmd = f'{pipe_command} {startpoint} "{pushList[i]}" {push_pipe}'
+            p = subprocess.Popen(cmd, shell=True)
             p.wait()
+        else:
+            cmd = [
+                'ffmpeg', '-re', '-ss', startpoint,
+                '-i', pushList[i],
+                '-c', 'copy',
+                '-f', 'mpegts', '-'
+            ]
+            with open(push_pipe, 'ab') as pipe:
+                p = subprocess.Popen(cmd, stdout=pipe)
+                p.wait()
 
         e_end = time.time()
         playtime = (int(startpoint[0:2]) * 3600 +

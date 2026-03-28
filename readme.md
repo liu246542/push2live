@@ -74,7 +74,7 @@ play_pipe（视频文件 → 管道） → play_server（管道 → B站 RTMP）
 
 - `[bilibili]` — 直播间 ID、分类、cookie 路径
 - `[telegram]` — Bot Token 和群组 Chat ID
-- `[ffmpeg]` — 推流编码参数（码率、音频等）
+- `[ffmpeg]` — 推流编码参数（码率、音频等），可通过 `pipe_command` 指定自定义视频处理脚本
 - `[local]` — 本地测试 RTMP 地址
 - `[paths]` — 各数据文件路径
 - `[switcher]` — 分类切换配置

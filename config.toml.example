@@ -20,6 +20,10 @@ audio_sample_rate = 44100
 audio_channels = 2
 volume = "1dB"
 rtmp_buffer = 50000
+# 自定义视频处理脚本（可选），留空则使用默认的 ffmpeg -c copy
+# 脚本接收三个参数：起始时间 视频文件路径 管道路径
+# 例如：pipe_command = "bash /path/to/your/play2.sh"
+# pipe_command = ""
 
 [local]
 rtmp_addr = "rtmp://YOUR_LOCAL_IP:1936/live"
