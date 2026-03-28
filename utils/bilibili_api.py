@@ -141,9 +141,8 @@ class BilibiliAPI:
             response = self._request("get", url, headers=self.api_headers)
 
             if response and response.get("code") == -101:
-                self.logger.warning("Cookie 已失效，尝试重新加载")
-                cookie_file = self.config["bilibili"]["cookie_file"]
-                return self.login_with_cookie(cookie_file)
+                self.logger.error("Cookie 已失效，请重新登录（运行 login_with_qrcode）")
+                return False
 
             if response and response.get("code") == 0:
                 data = response["data"]
