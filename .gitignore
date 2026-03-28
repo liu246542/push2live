@@ -128,5 +128,8 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-data/cookie_test.json
+data/
 test.py
+config.toml
+pipe/pushlive
+push2live3
