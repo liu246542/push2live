@@ -66,10 +66,8 @@ def run(config=None):
             if not bili.user_info.live_room.get("liveStatus"):
                 bili.start_live()
                 time.sleep(5)
-            # 每轮刷新 RTMP 地址（断线重连后地址可能变化）
-            new_addr = bili.get_rtmp()
-            if new_addr:
-                rtmp_addr = new_addr
+                # 重新开播后刷新 RTMP 地址
+                rtmp_addr = bili.get_rtmp() or rtmp_addr
         except Exception as e:
             print(e)
             time.sleep(30)
