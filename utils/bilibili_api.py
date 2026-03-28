@@ -36,6 +36,9 @@ class BilibiliAPI:
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"]
 
+        self._mixin_key_cache = None
+        self._mixin_key_ts = 0
+
         self.api_headers = {
             'Accept': "text/html,application/xhtml+xml,application/xml;q=0.9," +
                       "image/avif,image/webp,image/apng,*/*;q=0.8,application/" +
@@ -128,7 +131,7 @@ class BilibiliAPI:
         return {}
 
     def get_user_info(self) -> bool:
-        """用于获取用户信息，并返回当前的登录状态"""
+        """用于获取用户信息，并返回当前的登录状态。检测到 cookie 失效时自动重新加载。"""
         try:
             wts = int(time.time())
             params = {"mid": self.get_uid(), "wts": wts}
@@ -136,6 +139,11 @@ class BilibiliAPI:
             url = "https://api.bilibili.com/x/space/wbi/acc/info?" + \
                   f"mid={self.get_uid()}&w_rid={w_rid}&wts={wts}"
             response = self._request("get", url, headers=self.api_headers)
+
+            if response and response.get("code") == -101:
+                self.logger.warning("Cookie 已失效，尝试重新加载")
+                cookie_file = self.config["bilibili"]["cookie_file"]
+                return self.login_with_cookie(cookie_file)
 
             if response and response.get("code") == 0:
                 data = response["data"]
@@ -164,11 +172,19 @@ class BilibiliAPI:
         return self.session.cookies.get_dict(domain=".bilibili.com")
 
     def get_mixin_key(self) -> str:
-        """获取混合密钥"""
+        """获取混合密钥，缓存 30 分钟"""
+        # 缓存有效期内直接返回
+        if self._mixin_key_cache and (time.time() - self._mixin_key_ts) < 1800:
+            return self._mixin_key_cache
+
         url = "https://api.bilibili.com/x/web-interface/nav"
         response = self._request("get", url, headers=self.api_headers)
 
         if not response or response.get("code") != 0:
+            # 如果请求失败但有缓存，返回旧缓存
+            if self._mixin_key_cache:
+                self.logger.warning("刷新混合密钥失败，使用缓存")
+                return self._mixin_key_cache
             raise BilibiliError("获取混合密钥失败")
 
         # wbi 鉴权
@@ -186,7 +202,9 @@ class BilibiliAPI:
               21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52]
 
         le = reduce(lambda s, i: s + ae[i], oe, "")
-        return le[:32]
+        self._mixin_key_cache = le[:32]
+        self._mixin_key_ts = time.time()
+        return self._mixin_key_cache
 
     def login_with_cookie(self, cookie_file: Optional[str] = None) -> bool:
         """使用 cookies 进行登录"""
@@ -335,9 +353,14 @@ class BilibiliAPI:
             'csrf_token': self.session.cookies['bili_jct'],
             'csrf': self.session.cookies['bili_jct'],
         }
-        response = self._request("post", url, data=payload, headers=self.api_headers).get("data").get("addr")
-        self.rtmp_addr = response.get("addr") + response.get("code")
-        return self.rtmp_addr
+        response = self._request("post", url, data=payload, headers=self.api_headers)
+        try:
+            addr_info = response["data"]["addr"]
+            self.rtmp_addr = addr_info["addr"] + addr_info["code"]
+            return self.rtmp_addr
+        except (TypeError, KeyError) as e:
+            self.logger.error(f"获取 RTMP 地址失败：{e}")
+            return None
 
     def stop_live(self):
         url = "https://api.live.bilibili.com/room/v1/Room/stopLive"
