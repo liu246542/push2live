@@ -1,0 +1,38 @@
+[bilibili]
+room_id = 0  # 你的直播间 ID
+area_id = 624
+cookie_file = "data/cookie.json"
+
+[bilibili.danmaku]
+color = "16777215"
+fontsize = 25
+mode = 1
+
+[telegram]
+bot_token = "YOUR_BOT_TOKEN_HERE"
+chat_id = "YOUR_CHAT_ID_HERE"
+
+[ffmpeg]
+max_bitrate = "4500k"
+buffer_size = "80000k"
+audio_bitrate = "128k"
+audio_sample_rate = 44100
+audio_channels = 2
+volume = "1dB"
+rtmp_buffer = 50000
+
+[local]
+rtmp_addr = "rtmp://YOUR_LOCAL_IP:1936/live"
+
+[paths]
+videos_db = "data/videos.json"
+pipe = "pipe/pushlive"
+dm_log = "dm.log"
+live_log = "data/live.log"
+login_log = "data/login.log"
+qz_flag = "qz.log"
+
+[switcher]
+area_ids = [646, 624, 236, 840]
+area_names = ["UP主日常", "电子榨菜", "主机游戏", "养成玩法"]
+interval = 60
