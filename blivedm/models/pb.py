@@ -6,11 +6,6 @@ from typing import *
 import pure_protobuf.annotations as pb_anno
 import pure_protobuf.message as pb_msg
 
-try:
-    Annotated
-except NameError:
-    from typing_extensions import Annotated  # Python < 3.9
-
 
 @dataclasses.dataclass
 class SimpleUser(pb_msg.BaseMessage):

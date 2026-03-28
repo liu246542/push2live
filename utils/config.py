@@ -1,11 +1,7 @@
 #!/usr/bin/python3
 
 import os
-
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib
+import tomllib
 
 from dataclasses import dataclass, field
 

@@ -1,133 +1,140 @@
-import os
-import time
+import asyncio
 import logging
-import subprocess
+import os
 import sys
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from telegram import Update, Bot
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-from telegram.utils.request import Request
-from telegram.ext.dispatcher import run_async
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 from utils.bilibili_api import BilibiliAPI
 from utils.config import load_config
 
-_config = None
-_bili = None
-_bot = None
+logger = logging.getLogger("tg_bot")
 
 
-def start(update: Update, context: CallbackContext):
-    context.bot.send_message(chat_id=update.effective_chat.id, text='欢迎使用机器人！')
+# ============ 命令处理 ============
+
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("欢迎使用推流控制机器人！\n"
+                                    "/start_live - 恢复推流\n"
+                                    "/stop_live - 停止推流\n"
+                                    "/send <消息> - 发送弹幕")
 
 
-def handle_message(update: Update, context: CallbackContext):
-    global _bili, _config
-    chat_id = update.effective_chat.id
-    text = update.message.text if update.message else None
-    group_chat_id = _config["telegram"]["chat_id"]
-
-    if text is None:
-        return
-
-    reply_text = None
-
-    if str(chat_id) == str(group_chat_id):
-        pass
-    else:
-        if text == '/start':
-            reply_text = '欢迎使用机器人！'
-        elif text == '/start_live':
-            _run_live()
-        elif text == '/stop_live':
-            _stop_live()
-        elif text.startswith('/send '):
-            try:
-                ret = _bili.send_dm(text[6:])
-                if ret is not None:
-                    reply_text = '发送成功'
-                else:
-                    reply_text = '网络错误'
-            except Exception:
-                reply_text = '发送失败'
-        else:
-            reply_text = f'你发送了：{text}'
-
-        if reply_text:
-            context.bot.send_message(chat_id=chat_id, text=reply_text)
-
-
-@run_async
-def _run_live():
-    global _config
-    qz_flag_path = _config["paths"]["qz_flag"]
+async def cmd_start_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    qz_flag_path = context.bot_data["qz_flag_path"]
     with open(qz_flag_path, "w") as f:
         f.write("0")
-    p = subprocess.Popen(f"python3 {ROOT_DIR}/components/play_server.py", shell=True)
-    p.wait()
+    await update.message.reply_text("已恢复推流信号（qz_flag=0），等待组件自动重启")
 
 
-@run_async
-def _stop_live():
-    global _bili, _config
-    qz_flag_path = _config["paths"]["qz_flag"]
+async def cmd_stop_live(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    qz_flag_path = context.bot_data["qz_flag_path"]
+    bili: BilibiliAPI = context.bot_data["bili"]
     with open(qz_flag_path, "w") as f:
         f.write("1")
-    _bili.stop_live()
+    try:
+        bili.stop_live()
+        await update.message.reply_text("已停止推流并关闭直播间")
+    except Exception as e:
+        await update.message.reply_text(f"停止推流失败: {e}")
 
 
-def tail_f(log_file):
-    log_file.seek(0, os.SEEK_END)
-    while True:
-        line = log_file.readline()
-        if not line:
-            time.sleep(0.1)
-            continue
-        yield line
+async def cmd_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    bili: BilibiliAPI = context.bot_data["bili"]
+    text = " ".join(context.args) if context.args else ""
+    if not text:
+        await update.message.reply_text("用法: /send <弹幕内容>")
+        return
+    try:
+        ret = bili.send_dm(text)
+        if ret is not None:
+            await update.message.reply_text("发送成功")
+        else:
+            await update.message.reply_text("网络错误")
+    except Exception:
+        await update.message.reply_text("发送失败")
 
+
+# ============ 弹幕转发 ============
+
+async def forward_danmaku(app: Application, dm_log_path: str, chat_id: str):
+    """异步监听弹幕日志，转发到 Telegram 群组"""
+    # 等待日志文件存在
+    while not os.path.exists(dm_log_path):
+        await asyncio.sleep(2)
+
+    with open(dm_log_path, "r") as f:
+        f.seek(0, os.SEEK_END)
+        while True:
+            line = f.readline()
+            if not line:
+                await asyncio.sleep(0.5)
+                continue
+            try:
+                await app.bot.send_message(chat_id=chat_id, text=line.strip())
+            except Exception as e:
+                logger.warning(f"弹幕转发失败: {e}")
+            await asyncio.sleep(1)
+
+
+# ============ 入口 ============
 
 def run(config=None):
-    global _config, _bili, _bot
     if config is None:
         config = load_config()
-    _config = config
 
     tg_config = config["telegram"]
     token = tg_config["bot_token"]
-    group_chat_id = tg_config["chat_id"]
+    group_chat_id = str(tg_config["chat_id"])
     dm_log_path = config["paths"]["dm_log"]
+    qz_flag_path = config["paths"]["qz_flag"]
+    proxy_url = tg_config.get("proxy", "")
 
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         level=logging.INFO
     )
 
-    _bili = BilibiliAPI(config)
-    _bili.login_with_cookie()
+    bili = BilibiliAPI(config)
+    bili.login_with_cookie()
 
-    proxy_url = tg_config.get("proxy", "")
-    request_kwargs = {"proxy_url": proxy_url} if proxy_url else {}
+    # 构建 Application
+    builder = Application.builder().token(token)
+    if proxy_url:
+        builder = builder.proxy(proxy_url).get_updates_proxy(proxy_url)
+    app = builder.build()
 
-    _bot = Bot(token=token, request=Request(**request_kwargs) if request_kwargs else None)
+    # 共享数据，替代全局变量
+    app.bot_data["bili"] = bili
+    app.bot_data["config"] = config
+    app.bot_data["qz_flag_path"] = qz_flag_path
 
-    updater = Updater(token=token, use_context=True, request_kwargs=request_kwargs)
-    dispatcher = updater.dispatcher
-    dispatcher.add_handler(CommandHandler('start', start))
-    dispatcher.add_handler(MessageHandler(Filters.text, handle_message))
-    updater.start_polling()
+    # 注册命令
+    app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CommandHandler("start_live", cmd_start_live))
+    app.add_handler(CommandHandler("stop_live", cmd_stop_live))
+    app.add_handler(CommandHandler("send", cmd_send))
 
-    with open(dm_log_path, "r") as f:
-        log_lines = tail_f(f)
-        for line in log_lines:
-            try:
-                _bot.send_message(chat_id=group_chat_id, text=line.strip())
-            except Exception as e:
-                print(e)
-            time.sleep(1)
+    # 启动弹幕转发任务
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    async def start_all():
+        async with app:
+            await app.start()
+            await app.updater.start_polling()
+            # 并发运行弹幕转发
+            await forward_danmaku(app, dm_log_path, group_chat_id)
+
+    try:
+        loop.run_until_complete(start_all())
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == '__main__':
